@@ -89,14 +89,24 @@ static void generic_loader_realize(DeviceState *dev, Error **errp)
         } else if (s->data_len > 8) {
             error_setg(errp, "data-len cannot be greater then 8 bytes");
             return;
+        /// START rusticore_fuzz
+        } else if (s->gdb_map_layout) {
+            error_setg(errp, "Specifying a gdb memory layout is not supported with "
+                        "data arguments. Please, use gdb_memory_layout alone.");
         }
+        /// END rusticore_fuzz
     } else if (s->file || s->force_raw)  {
         /* User is loading an image */
         if (s->data || s->data_len || s->data_be) {
             error_setg(errp, "data can not be specified when loading an "
                        "image");
             return;
+        /// START rusticore_fuzz
+        } else if (s->gdb_map_layout) {
+            error_setg(errp, "Specifying a gdb memory layout is not supported with "
+                    "file/force_raw arguments. Please, use gdb_memory_layout alone.");
         }
+        /// END rusticore_fuzz
         /* The user specified a file, only set the PC if they also specified
          * a CPU to use.
          */
@@ -115,7 +125,15 @@ static void generic_loader_realize(DeviceState *dev, Error **errp)
             return;
         }
         s->set_pc = true;
-    } else {
+    /// START rusticore_fuzz
+    } else if (s->gdb_map_layout) {
+        /* User is loading a gdb dump to memory*/
+        if (s->addr) {
+            error_setg(errp, "Can't use addr when loading from a gdb dump.");
+        }
+    }
+    /// END rusticore_fuzz
+    else {
         /* Did the user specify anything? */
         error_setg(errp, "please include valid arguments");
         return;
@@ -164,8 +182,19 @@ static void generic_loader_realize(DeviceState *dev, Error **errp)
             error_setg(errp, "Cannot load specified image %s", s->file);
             return;
         }
-    }
+    /// START rusticore_fuzz
+    } else if (s->gdb_map_layout) {
+        AddressSpace *as = s->cpu ? s->cpu->as :  NULL;
+        ProcMemoryAS *process_as_mapping = load_gdb_layout_file(s->gdb_map_layout);
 
+        ProcMemoryMapEntry *entry = NULL;
+
+        QLIST_FOREACH(entry, &process_as_mapping->allocations, list) {
+            dma_memory_write(as, entry->addr, entry->buf, entry->size, 
+                MEMTXATTRS_UNSPECIFIED);
+        }
+    }
+    /// END rusticore_fuzz
     /* Convert the data endiannes */
     if (s->data_be) {
         s->data = cpu_to_be64(s->data);
@@ -187,6 +216,9 @@ static Property generic_loader_props[] = {
     DEFINE_PROP_UINT32("cpu-num", GenericLoaderState, cpu_num, CPU_NONE),
     DEFINE_PROP_BOOL("force-raw", GenericLoaderState, force_raw, false),
     DEFINE_PROP_STRING("file", GenericLoaderState, file),
+    //// START rusticore_fuzz
+    DEFINE_PROP_STRING("gdb_map_layout", GenericLoaderState, gdb_map_layout),
+    //// END rusticore_fuzz
     DEFINE_PROP_END_OF_LIST(),
 };
 

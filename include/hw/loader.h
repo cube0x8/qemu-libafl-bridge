@@ -243,6 +243,39 @@ ssize_t load_ramdisk_as(const char *filename, hwaddr addr, uint64_t max_sz,
  */
 ssize_t load_ramdisk(const char *filename, hwaddr addr, uint64_t max_sz);
 
+/// START rusticore_fuzz
+enum MEMORY_MAPPING_FIELDS {
+    START_ADDR,
+    END_ADDR,
+    SIZE,
+    OFFSET,
+    OBJFILE,
+    DUMP_FILE
+};
+
+typedef struct ProcMemoryMapEntry ProcMemoryMapEntry;
+typedef struct ProcMemoryAS ProcMemoryAS;
+
+struct ProcMemoryMapEntry {
+    char description[100];
+    uint64_t addr;
+    uint64_t end_addr;
+    uint64_t offset;
+    size_t size;
+    uint8_t *buf;
+    char dump_file[255];
+    QLIST_ENTRY(ProcMemoryMapEntry) list;
+};
+
+struct ProcMemoryAS {
+    size_t total_size;
+    QLIST_HEAD(, ProcMemoryMapEntry) allocations;
+};
+
+ProcMemoryAS *load_gdb_layout_file(char *filename);
+
+/// END rusticore_fuzz
+
 ssize_t gunzip(void *dst, size_t dstlen, uint8_t *src, size_t srclen);
 
 ssize_t read_targphys(const char *name,

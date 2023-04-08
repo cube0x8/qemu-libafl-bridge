@@ -1870,3 +1870,173 @@ ssize_t load_targphys_hex_as(const char *filename, hwaddr *entry,
     g_free(hex_blob);
     return total_size;
 }
+
+/// START rusticore_fuzz
+static bool value_to_number(char *entry_value, uint64_t *result)
+{
+    uint64_t to_number = strtoumax(entry_value, NULL, 10);
+    if (to_number == UINTMAX_MAX && errno == ERANGE) {
+        return false;
+    }
+
+    *result = to_number;
+
+    return true;
+}
+
+static bool parse_entry(char *entry, ProcMemoryMapEntry *memory_mapping) 
+{
+    char *entry_value = strtok(entry, ",");
+    int count_entry_values = 0;
+    uint64_t start_addr;
+    uint64_t end_addr;
+    uint64_t size;
+    uint64_t offset;
+
+    while (entry_value != NULL) {
+
+        switch (count_entry_values) {
+            case START_ADDR:
+                start_addr = 0;
+                if (!value_to_number(entry_value, &start_addr)) {
+                    return false;
+                }
+                memory_mapping->addr = start_addr;
+                break;
+            case END_ADDR:
+                end_addr = 0;
+                if (!value_to_number(entry_value, &end_addr)) {
+                    return false;
+                }
+                memory_mapping->end_addr = end_addr;
+                break;
+            case SIZE:
+                size = 0;
+                if (!value_to_number(entry_value, &size)) {
+                    return false;
+                }
+                memory_mapping->size = size;
+                break;
+            case OFFSET:
+                offset = 0;
+                if (!value_to_number(entry_value, &offset)) {
+                    return false;
+                }
+                memory_mapping->offset = offset;
+                break;
+            case OBJFILE:
+                strncpy(memory_mapping->description, entry_value, 99);
+                break;
+            case DUMP_FILE:
+                strncpy(memory_mapping->dump_file, entry_value, 255);
+                memory_mapping->buf = NULL;
+                gsize len;
+
+                if (!g_file_get_contents(memory_mapping->dump_file, 
+                    (char **) &memory_mapping->buf, &len, NULL)) {
+                    return false;
+                }
+
+                /**
+                 * we check that the size of the dump file is actually the same 
+                 * as the one in the entry
+                */
+                
+                if (len != memory_mapping->size) {
+                    return false;
+                }
+
+        }
+
+        entry_value = strtok(NULL, ",");
+        count_entry_values += 1;
+    }
+
+    if (count_entry_values != 6) {
+        // invalid layout_memory file
+        return false;
+    }
+
+    return true;
+}
+
+
+static QLIST_HEAD(, ProcMemoryMapEntry) proc_map = \
+    QLIST_HEAD_INITIALIZER(proc_map);
+
+
+static size_t parse_gdb_map_layout(char *data, gsize len)
+{
+    /**
+     * One entry of the layout_memory file is formatted as follows:
+     * start,end,size,offset,objfile,dump_filename\n
+     * 
+     * */
+    int start_index = 0;
+    int end_index = 0;
+    size_t total_size = 0;
+    ProcMemoryMapEntry *memory_mapping;
+    ProcMemoryMapEntry *prev_mapping;
+
+    while (end_index < len) {
+        start_index = end_index;
+        memory_mapping = g_new(ProcMemoryMapEntry, 1);
+
+        while (2) {
+            if (data[end_index] == '\n') {
+                data[end_index] = '\x00';
+
+                // prepare end_index for the next iteration so it won't be pointing to the null byte
+                end_index += 1;
+
+                if (!parse_entry(&data[start_index], memory_mapping)) {
+                    return -1;
+                }
+                
+                total_size += memory_mapping->size;
+                // first element in the list
+                if (start_index == 0) {
+                    QLIST_INSERT_HEAD(&proc_map, memory_mapping, list);
+                }
+                else {
+                    QLIST_INSERT_AFTER(prev_mapping, memory_mapping, list);
+                }
+
+                prev_mapping = memory_mapping;
+
+                break;
+            }
+
+            /**
+             * we increase until we find \n. 
+             * \n indicates the end of an entry.
+             * we enter the parsing routine and we get start_index == start of the entry
+             * and end_index == end of the entry, that we replace with \x00
+             * */
+            end_index++;
+        }
+    }
+
+    return total_size;
+}
+
+// return size of the entire mapping (the sum of all dump file) or -1
+ProcMemoryAS *load_gdb_layout_file(char *filename)
+{
+    uint8_t *data = NULL;
+    gsize len;
+    ssize_t total_size = 0;
+
+    if (!g_file_get_contents(filename, (char **) &data, &len, NULL)) {
+        return NULL;
+    }
+
+    total_size = parse_gdb_map_layout((char *)data, len);
+
+    ProcMemoryAS *proc_memory_as = g_new(ProcMemoryAS, 1);
+    proc_memory_as->total_size = total_size;
+    proc_memory_as->allocations.lh_first = proc_map.lh_first;
+
+    return proc_memory_as;
+}
+/// END rusticore_fuzz
