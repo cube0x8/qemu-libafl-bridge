@@ -1928,7 +1928,7 @@ static bool parse_entry(char *entry, ProcMemoryMapEntry *memory_mapping)
                 strncpy(memory_mapping->description, entry_value, 99);
                 break;
             case DUMP_FILE:
-                strncpy(memory_mapping->dump_file, entry_value, 255);
+                strncpy(memory_mapping->dump_file, entry_value, 254);
                 memory_mapping->buf = NULL;
                 gsize len;
 
@@ -1981,6 +1981,7 @@ static size_t parse_gdb_map_layout(char *data, gsize len)
     while (end_index < len) {
         start_index = end_index;
         memory_mapping = g_new(ProcMemoryMapEntry, 1);
+        prev_mapping = g_new(ProcMemoryMapEntry, 1);
 
         while (2) {
             if (data[end_index] == '\n') {
@@ -2002,17 +2003,17 @@ static size_t parse_gdb_map_layout(char *data, gsize len)
                     QLIST_INSERT_AFTER(prev_mapping, memory_mapping, list);
                 }
 
-                prev_mapping = memory_mapping;
+                memcpy(prev_mapping, memory_mapping, sizeof(ProcMemoryMapEntry));
 
                 break;
             }
 
-            /**
+            /*
              * we increase until we find \n. 
              * \n indicates the end of an entry.
-             * we enter the parsing routine and we get start_index == start of the entry
-             * and end_index == end of the entry, that we replace with \x00
-             * */
+             * we enter the parsing routine and we get "start_index" == "start of the entry"
+             * and "end_index" == "end of the entry", that we replace with \x00
+             */
             end_index++;
         }
     }
