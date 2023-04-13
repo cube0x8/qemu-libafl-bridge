@@ -1976,12 +1976,11 @@ static size_t parse_gdb_map_layout(char *data, gsize len)
     int end_index = 0;
     size_t total_size = 0;
     ProcMemoryMapEntry *memory_mapping;
-    ProcMemoryMapEntry *prev_mapping;
+    ProcMemoryMapEntry *prev_mapping = NULL;
 
     while (end_index < len) {
         start_index = end_index;
         memory_mapping = g_new(ProcMemoryMapEntry, 1);
-        prev_mapping = g_new(ProcMemoryMapEntry, 1);
 
         while (2) {
             if (data[end_index] == '\n') {
@@ -2003,7 +2002,7 @@ static size_t parse_gdb_map_layout(char *data, gsize len)
                     QLIST_INSERT_AFTER(prev_mapping, memory_mapping, list);
                 }
 
-                memcpy(prev_mapping, memory_mapping, sizeof(ProcMemoryMapEntry));
+                prev_mapping = memory_mapping;
 
                 break;
             }
