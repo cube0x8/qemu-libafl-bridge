@@ -813,7 +813,7 @@ abi_ulong target_brk, initial_target_brk;
 
 void target_set_brk(abi_ulong new_brk)
 {
-    printf("target_set_brk: %p\n", new_brk);
+    printf("target_set_brk: %#lx\n", new_brk);
     target_brk = TARGET_PAGE_ALIGN(new_brk);
     initial_target_brk = target_brk;
 }
