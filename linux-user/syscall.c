@@ -813,6 +813,7 @@ abi_ulong target_brk, initial_target_brk;
 
 void target_set_brk(abi_ulong new_brk)
 {
+    printf("target_set_brk: %p\n", new_brk);
     target_brk = TARGET_PAGE_ALIGN(new_brk);
     initial_target_brk = target_brk;
 }
@@ -824,6 +825,7 @@ abi_long do_brk(abi_ulong brk_val)
     abi_ulong new_brk;
     abi_ulong old_brk;
 
+    printf("do_brk: %p\n", brk_val);
     /* brk pointers are always untagged */
 
     /* do not allow to shrink below initial brk value */
@@ -833,6 +835,7 @@ abi_long do_brk(abi_ulong brk_val)
 
     new_brk = TARGET_PAGE_ALIGN(brk_val);
     old_brk = TARGET_PAGE_ALIGN(target_brk);
+    printf("do_brk: old_brk=%#lx new_brk=%#lx\n", old_brk, new_brk);
 
     /* new and old target_brk might be on the same page */
     if (new_brk == old_brk) {
@@ -842,6 +845,7 @@ abi_long do_brk(abi_ulong brk_val)
 
     /* Release heap if necessary */
     if (new_brk < old_brk) {
+        printf("Shrinking brk. Releasing heap: %p - %#x\n", new_brk, old_brk);
         target_munmap(new_brk, old_brk - new_brk);
 
         target_brk = brk_val;
