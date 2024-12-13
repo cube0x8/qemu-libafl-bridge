@@ -825,7 +825,7 @@ abi_long do_brk(abi_ulong brk_val)
     abi_ulong new_brk;
     abi_ulong old_brk;
 
-    printf("do_brk: %p\n", brk_val);
+    printf("do_brk: %#lx\n", brk_val);
     /* brk pointers are always untagged */
 
     /* do not allow to shrink below initial brk value */
@@ -845,7 +845,7 @@ abi_long do_brk(abi_ulong brk_val)
 
     /* Release heap if necessary */
     if (new_brk < old_brk) {
-        printf("Shrinking brk. Releasing heap: %p - %#x\n", new_brk, old_brk);
+        printf("Shrinking brk. Releasing heap: %#lx - %#lx\n", new_brk, old_brk-new_brk);
         target_munmap(new_brk, old_brk - new_brk);
 
         target_brk = brk_val;
