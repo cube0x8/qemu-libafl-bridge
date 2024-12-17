@@ -9281,6 +9281,7 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
 #endif
 
     case TARGET_NR_brk:
+        printf("Received brk syscall %#lx\n", arg1);
         return do_brk(arg1);
 #ifdef TARGET_NR_fork
     case TARGET_NR_fork:
